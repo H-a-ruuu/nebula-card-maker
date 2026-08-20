@@ -435,6 +435,13 @@
   .card-header-img .pan-zoom-handle { right: 6px; bottom: 6px; }
   .card-insignia .pan-zoom-handle { right: -4px; bottom: -4px; width: 15px; height: 15px; }
   .pair-card-preview .pan-zoom-handle { right: 6px; bottom: 6px; }
+
+  .card-window.exporting .pan-zoom-handle,
+  .card-window.exporting .pair-height-handle,
+  .card-window.exporting .sticker-resize,
+  .card-window.exporting .sticker-delete {
+    display: none !important;
+  }
   .pair-height-handle {
     position: absolute;
     left: 50%; bottom: 3px; transform: translateX(-50%);
@@ -1437,6 +1444,27 @@
   });
 
   // ---------- 다운로드 ----------
+  function collectImageSources() {
+    const sources = [];
+    if (state.header) sources.push(state.header);
+    if (state.insignia) sources.push(state.insignia);
+    state.pairs.forEach(pair => { if (pair.image) sources.push(pair.image); });
+    state.stickers.forEach(sticker => { if (sticker.src) sources.push(sticker.src); });
+    return sources;
+  }
+
+  function preloadAndDecode(sources) {
+    return Promise.all(sources.map(src => {
+      const img = new Image();
+      img.src = src;
+      if (img.decode) return img.decode().catch(() => {});
+      return new Promise(resolve => {
+        if (img.complete) resolve();
+        else { img.onload = () => resolve(); img.onerror = () => resolve(); }
+      });
+    }));
+  }
+
   document.getElementById("downloadBtn").addEventListener("click", async () => {
     const btn = document.getElementById("downloadBtn");
     const cardWindow = document.querySelector(".card-window");
@@ -1447,10 +1475,21 @@
     btn.textContent = "생성 중...";
     pairScroll.style.maxHeight = "none";
     pairScroll.style.overflowY = "visible";
-    await new Promise(r => setTimeout(r, 50));
+    cardWindow.classList.add("exporting");
+
+    // 모든 이미지(헤더/인장/페어/스티커)가 완전히 디코딩된 뒤에 캡처해야
+    // 다운로드 이미지가 깨지거나 비어 보이는 문제를 막을 수 있다.
+    await preloadAndDecode(collectImageSources());
+    await new Promise(r => setTimeout(r, 100));
 
     try {
-      const canvas = await html2canvas(cardWindow, { backgroundColor: null, scale: 2, useCORS: true });
+      const canvas = await html2canvas(cardWindow, {
+        backgroundColor: null,
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        imageTimeout: 20000
+      });
       const link = document.createElement("a");
       link.download = (state.nickname || "dreamcard") + ".png";
       link.href = canvas.toDataURL("image/png");
@@ -1460,6 +1499,7 @@
     } finally {
       pairScroll.style.maxHeight = originalMaxHeight;
       pairScroll.style.overflowY = originalOverflow;
+      cardWindow.classList.remove("exporting");
       btn.textContent = "다운로드";
     }
   });
