@@ -108,6 +108,19 @@
     color: var(--text-secondary);
     margin-right: 130px;
   }
+  .project-file-bar {
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .project-file-bar .btn-row { display: flex; gap: 6px; }
+  .project-file-bar .action-btn { height: 30px; font-size: 12px; flex: 1; text-align: center; }
+  .project-file-bar .hint { line-height: 1.5; }
   .titlebar-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; position: relative; }
   .action-btn {
     border: 0.5px solid var(--border-strong);
@@ -580,6 +593,16 @@
   <div class="app-body">
     <!-- ===================== 좌측 폼 ===================== -->
     <div class="form-panel">
+
+      <div class="project-file-bar">
+        <div class="btn-row">
+          <button class="action-btn" id="exportBtn">파일로 내보내기</button>
+          <label class="action-btn" style="cursor:pointer;">파일 불러오기
+            <input type="file" accept=".json,application/json" id="importInput" hidden>
+          </label>
+        </div>
+        <span class="hint">브라우저 임시저장은 용량 한도가 있어서 이미지가 많으면 실패할 수 있어요. "파일로 내보내기"를 누르면 지금까지 작업한 내용이 .json 파일로 저장돼요. 나중에 그 파일을 "파일 불러오기"로 선택하면 그대로 이어서 작업할 수 있어요. 파일은 잃어버리지 않게 잘 보관해주세요!</span>
+      </div>
 
       <details class="section" open>
         <summary>테마 설정</summary>
@@ -1437,8 +1460,42 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       showToast("임시저장 완료");
     } catch (err) {
-      showToast("저장 실패 (용량 초과일 수 있어요)");
+      showToast("저장 실패 (용량 초과) - 파일로 내보내기를 이용해주세요");
     }
+  });
+
+  // ---------- 파일로 내보내기 / 불러오기 ----------
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    try {
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.download = (state.nickname || "dreamcard") + "-project.json";
+      link.href = url;
+      link.click();
+      URL.revokeObjectURL(url);
+      showToast("파일로 내보냈어요");
+    } catch (err) {
+      showToast("내보내기에 실패했어요");
+    }
+  });
+
+  document.getElementById("importInput").addEventListener("change", (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const saved = JSON.parse(reader.result);
+        Object.assign(state, saved);
+        restoreFormFromState();
+        showToast("파일을 불러왔어요");
+      } catch (err) {
+        showToast("파일을 불러오지 못했어요 (형식이 올바르지 않아요)");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   });
 
   // ---------- 다운로드 ----------
@@ -1483,7 +1540,7 @@
     try {
       const canvas = await html2canvas(cardWindow, {
         backgroundColor: null,
-        scale: 2,
+        scale: 3,
         useCORS: true,
         allowTaint: true,
         imageTimeout: 20000
