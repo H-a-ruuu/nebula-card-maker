@@ -409,17 +409,19 @@
     position: relative;
     cursor: grab;
     touch-action: none;
+    user-select: none;
   }
   .card-header-img.panning, .card-insignia.panning, .pair-card-preview.panning { cursor: grabbing; }
   .card-insignia {
-    width: 52px; height: 52px; border-radius: 50%;
+    width: 72px; height: 72px; border-radius: 50%;
     background: var(--surface-chip);
     background-size: cover; background-position: center;
     border: 3px solid var(--surface);
     position: absolute;
-    left: 16px; top: 70px;
+    left: 16px; top: 62px;
     cursor: grab;
     touch-action: none;
+    user-select: none;
   }
   .pan-zoom-handle {
     position: absolute;
@@ -428,9 +430,11 @@
     border: 2px solid var(--surface);
     cursor: nwse-resize;
     z-index: 6;
+    touch-action: none;
   }
   .card-header-img .pan-zoom-handle { right: 6px; bottom: 6px; }
-  .card-insignia .pan-zoom-handle { right: -3px; bottom: -3px; width: 11px; height: 11px; }
+  .card-insignia .pan-zoom-handle { right: -4px; bottom: -4px; width: 15px; height: 15px; }
+  .pair-card-preview .pan-zoom-handle { right: 6px; bottom: 6px; }
   .pair-height-handle {
     position: absolute;
     left: 50%; bottom: 3px; transform: translateX(-50%);
@@ -439,7 +443,7 @@
     cursor: ns-resize;
     z-index: 6;
   }
-  .card-idblock { padding: 32px 16px 4px; }
+  .card-idblock { padding: 42px 16px 4px; }
   .card-nickname { font-size: 15px; font-weight: 500; margin: 0; }
   .card-twid { font-size: 11px; color: var(--text-muted); margin: 2px 0 14px; }
 
@@ -482,14 +486,17 @@
     cursor: grab;
     touch-action: none;
     flex-shrink: 0;
+    user-select: none;
   }
   .pair-card-overlay {
     position: absolute; inset: 0;
     background: linear-gradient(transparent 40%, rgba(0,0,0,0.65));
     border-radius: 10px;
+    pointer-events: none;
   }
   .pair-card-text {
     position: relative; padding: 10px 12px; color: #fff; z-index: 1;
+    pointer-events: none;
   }
   .pair-card-text .pn { font-size: 13px; font-weight: 500; margin: 0; }
   .pair-card-text .pg { font-size: 10px; opacity: 0.85; margin: 0; }
@@ -911,51 +918,76 @@
   function clampPercent(v) { return Math.max(0, Math.min(100, v)); }
   function clampScale(v) { return Math.max(1, Math.min(3, v)); }
 
+  // 마우스 이벤트와 터치 이벤트를 모두 document에 붙여서 처리한다.
+  // (Pointer Events / setPointerCapture는 일부 브라우저·인앱 브라우저에서
+  // 지원이 불완전해 "손을 놓아도 안 놓이는" 문제가 생길 수 있어서,
+  // 호환성이 훨씬 넓은 mouse/touch 이벤트 + document 리스닝 방식으로 대체했다.)
+  function getPoint(e) {
+    if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    if (e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function startDragTracking(onMove, onEnd) {
+    let ended = false;
+    function moveHandler(e) {
+      if (e.cancelable) e.preventDefault();
+      onMove(getPoint(e));
+    }
+    function endHandler() {
+      if (ended) return;
+      ended = true;
+      document.removeEventListener("mousemove", moveHandler);
+      document.removeEventListener("mouseup", endHandler);
+      document.removeEventListener("touchmove", moveHandler);
+      document.removeEventListener("touchend", endHandler);
+      document.removeEventListener("touchcancel", endHandler);
+      onEnd();
+    }
+    document.addEventListener("mousemove", moveHandler);
+    document.addEventListener("mouseup", endHandler);
+    document.addEventListener("touchmove", moveHandler, { passive: false });
+    document.addEventListener("touchend", endHandler);
+    document.addEventListener("touchcancel", endHandler);
+  }
+
+  function bindPressStart(el, handler) {
+    el.addEventListener("mousedown", handler);
+    el.addEventListener("touchstart", handler, { passive: false });
+  }
+
   function attachPan(el, posObj, onUpdate) {
-    el.addEventListener("pointerdown", (e) => {
+    bindPressStart(el, (e) => {
       if (e.target.closest(".pan-zoom-handle") || e.target.closest(".pair-height-handle") ||
           e.target.closest(".sticker-delete") || e.target.closest(".sticker-resize")) return;
-      e.preventDefault();
-      el.setPointerCapture(e.pointerId);
+      if (e.cancelable) e.preventDefault();
       el.classList.add("panning");
       const rect = el.getBoundingClientRect();
-      const startX = e.clientX, startY = e.clientY;
+      const start = getPoint(e);
       const startPos = { x: posObj.x, y: posObj.y };
-      function onMove(ev) {
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
+      startDragTracking((p) => {
+        const dx = p.x - start.x;
+        const dy = p.y - start.y;
         posObj.x = clampPercent(startPos.x - (dx / rect.width) * 100);
         posObj.y = clampPercent(startPos.y - (dy / rect.height) * 100);
         onUpdate();
-      }
-      function onUp() {
+      }, () => {
         el.classList.remove("panning");
-        el.removeEventListener("pointermove", onMove);
-        el.removeEventListener("pointerup", onUp);
-      }
-      el.addEventListener("pointermove", onMove);
-      el.addEventListener("pointerup", onUp);
+      });
     });
   }
 
   function attachZoomHandle(handleEl, posObj, onUpdate) {
-    handleEl.addEventListener("pointerdown", (e) => {
-      e.preventDefault();
+    bindPressStart(handleEl, (e) => {
+      if (e.cancelable) e.preventDefault();
       e.stopPropagation();
-      handleEl.setPointerCapture(e.pointerId);
-      const startX = e.clientX;
+      const start = getPoint(e);
       const startScale = posObj.scale;
-      function onMove(ev) {
-        const dx = ev.clientX - startX;
+      startDragTracking((p) => {
+        const dx = p.x - start.x;
         posObj.scale = clampScale(startScale + dx / 100);
         onUpdate();
-      }
-      function onUp() {
-        handleEl.removeEventListener("pointermove", onMove);
-        handleEl.removeEventListener("pointerup", onUp);
-      }
-      handleEl.addEventListener("pointermove", onMove);
-      handleEl.addEventListener("pointerup", onUp);
+      }, () => {});
     });
   }
 
@@ -972,10 +1004,20 @@
     elImg.style.backgroundSize = `${state.headerPos.scale * 100}%`;
   }
 
-  attachPan(document.getElementById("previewHeader"), state.headerPos, applyHeaderStyle);
-  attachZoomHandle(document.getElementById("headerZoomHandle"), state.headerPos, applyHeaderStyle);
-  attachPan(document.getElementById("previewInsignia"), state.insigniaPos, applyInsigniaStyle);
-  attachZoomHandle(document.getElementById("insigniaZoomHandle"), state.insigniaPos, applyInsigniaStyle);
+  attachPan(document.getElementById("previewHeader"), {
+    get x() { return state.headerPos.x; }, set x(v) { state.headerPos.x = v; },
+    get y() { return state.headerPos.y; }, set y(v) { state.headerPos.y = v; }
+  }, applyHeaderStyle);
+  attachZoomHandle(document.getElementById("headerZoomHandle"), {
+    get scale() { return state.headerPos.scale; }, set scale(v) { state.headerPos.scale = v; }
+  }, applyHeaderStyle);
+  attachPan(document.getElementById("previewInsignia"), {
+    get x() { return state.insigniaPos.x; }, set x(v) { state.insigniaPos.x = v; },
+    get y() { return state.insigniaPos.y; }, set y(v) { state.insigniaPos.y = v; }
+  }, applyInsigniaStyle);
+  attachZoomHandle(document.getElementById("insigniaZoomHandle"), {
+    get scale() { return state.insigniaPos.scale; }, set scale(v) { state.insigniaPos.scale = v; }
+  }, applyInsigniaStyle);
 
   document.getElementById("insigniaInput").addEventListener("change", (e) => {
     const file = e.target.files[0];
@@ -1254,23 +1296,16 @@
       attachZoomHandle(card.querySelector(".pan-zoom-handle"), { get scale() { return pair.scale; }, set scale(v) { pair.scale = v; } }, applyPairCardStyle);
 
       const heightHandle = card.querySelector(".pair-height-handle");
-      heightHandle.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
+      bindPressStart(heightHandle, (e) => {
+        if (e.cancelable) e.preventDefault();
         e.stopPropagation();
-        heightHandle.setPointerCapture(e.pointerId);
-        const startY = e.clientY;
+        const start = getPoint(e);
         const startHeight = pair.cardHeight;
-        function onMove(ev) {
-          pair.cardHeight = Math.max(100, Math.min(420, startHeight + (ev.clientY - startY)));
+        startDragTracking((p) => {
+          pair.cardHeight = Math.max(100, Math.min(420, startHeight + (p.y - start.y)));
           card.style.minHeight = pair.cardHeight + "px";
           card.style.height = pair.cardHeight + "px";
-        }
-        function onUp() {
-          heightHandle.removeEventListener("pointermove", onMove);
-          heightHandle.removeEventListener("pointerup", onUp);
-        }
-        heightHandle.addEventListener("pointermove", onMove);
-        heightHandle.addEventListener("pointerup", onUp);
+        }, () => {});
       });
 
       previewPairs.appendChild(card);
@@ -1348,47 +1383,34 @@
 
       node.querySelector(".sticker-delete").addEventListener("click", () => removeSticker(sticker.id));
 
-      node.addEventListener("pointerdown", (e) => {
+      bindPressStart(node, (e) => {
         if (e.target.classList.contains("sticker-resize") || e.target.classList.contains("sticker-delete")) return;
-        e.preventDefault();
-        node.setPointerCapture(e.pointerId);
+        if (e.cancelable) e.preventDefault();
         node.classList.add("dragging");
-        const startX = e.clientX, startY = e.clientY;
+        const start = getPoint(e);
         const startLeft = sticker.x, startTop = sticker.y;
 
-        function onMove(ev) {
-          sticker.x = startLeft + (ev.clientX - startX);
-          sticker.y = startTop + (ev.clientY - startY);
+        startDragTracking((p) => {
+          sticker.x = startLeft + (p.x - start.x);
+          sticker.y = startTop + (p.y - start.y);
           node.style.left = sticker.x + "px";
           node.style.top = sticker.y + "px";
-        }
-        function onUp(ev) {
+        }, () => {
           node.classList.remove("dragging");
-          node.removeEventListener("pointermove", onMove);
-          node.removeEventListener("pointerup", onUp);
-        }
-        node.addEventListener("pointermove", onMove);
-        node.addEventListener("pointerup", onUp);
+        });
       });
 
       const resizeHandle = node.querySelector(".sticker-resize");
-      resizeHandle.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
+      bindPressStart(resizeHandle, (e) => {
+        if (e.cancelable) e.preventDefault();
         e.stopPropagation();
-        resizeHandle.setPointerCapture(e.pointerId);
-        const startX = e.clientX;
+        const start = getPoint(e);
         const startWidth = sticker.width;
 
-        function onMove(ev) {
-          sticker.width = Math.max(24, Math.min(500, startWidth + (ev.clientX - startX)));
+        startDragTracking((p) => {
+          sticker.width = Math.max(24, Math.min(500, startWidth + (p.x - start.x)));
           node.style.width = sticker.width + "px";
-        }
-        function onUp() {
-          resizeHandle.removeEventListener("pointermove", onMove);
-          resizeHandle.removeEventListener("pointerup", onUp);
-        }
-        resizeHandle.addEventListener("pointermove", onMove);
-        resizeHandle.addEventListener("pointerup", onUp);
+        }, () => {});
       });
 
       stickerLayer.appendChild(node);
@@ -1497,7 +1519,13 @@
   }
 
   function loadFromLocalStorage() {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw;
+    try {
+      raw = localStorage.getItem(STORAGE_KEY);
+    } catch (err) {
+      console.error("이 브라우저 환경에서는 임시저장을 사용할 수 없어요", err);
+      return;
+    }
     if (!raw) return;
     try {
       const saved = JSON.parse(raw);
