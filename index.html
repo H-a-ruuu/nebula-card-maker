@@ -107,6 +107,10 @@
     font-size: 12px;
     color: var(--text-secondary);
     margin-right: 130px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
   .project-file-bar {
     border: 0.5px solid var(--border);
@@ -137,6 +141,92 @@
     white-space: nowrap;
   }
   .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .help-wrap { position: relative; }
+  .help-tooltip {
+    position: absolute;
+    top: 34px; right: 0;
+    width: 260px;
+    max-width: 78vw;
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.16);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    z-index: 50;
+    text-align: left;
+  }
+  .help-wrap:hover .help-tooltip,
+  .help-tooltip.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+  .help-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .help-list li { margin-bottom: 6px; }
+  .help-list li:last-child { margin-bottom: 0; }
+
+  .help-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .help-modal {
+    background: var(--surface);
+    border-radius: 16px;
+    border: 0.5px solid var(--border);
+    max-width: 440px;
+    width: 100%;
+    padding: 24px;
+    position: relative;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+  .help-modal h2 {
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 0 14px;
+    color: var(--text-primary);
+  }
+  .help-modal-close {
+    position: absolute;
+    top: 14px; right: 14px;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 0.5px solid var(--border-strong);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .help-modal-close:hover { border-color: var(--accent); color: var(--accent); }
+  .help-credit {
+    margin: 18px 0 0;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
+  }
+
+  @media (max-width: 480px) {
+    .app-titlebar-title { font-size: 11px; margin-right: 90px; }
+    .titlebar-actions { gap: 4px; }
+    .action-btn { padding: 0 8px; font-size: 11px; }
+  }
   .save-toast {
     position: absolute;
     top: 34px; right: 0;
@@ -576,6 +666,23 @@
 </head>
 <body>
 
+<div class="help-modal-overlay" id="helpModalOverlay">
+  <div class="help-modal">
+    <button class="help-modal-close" id="helpModalClose" aria-label="닫기">✕</button>
+    <h2>💡 HELP · 사용법</h2>
+    <ol class="help-list">
+      <li>왼쪽 폼에 내용을 입력하면 오른쪽 미리보기에 실시간으로 반영돼요.</li>
+      <li>헤더·인장·페어카드 사진은 직접 드래그해서 위치를 옮기고, 우하단 점을 잡고 늘리면 확대·축소할 수 있어요.</li>
+      <li>페어카드는 개수 제한 없이 추가·삭제할 수 있고, 카드 하단 바를 드래그하면 칸 높이도 조절돼요.</li>
+      <li>PNG 스티커를 올려서 카드 위 어디든 자유롭게 붙이고 크기를 조절할 수 있어요.</li>
+      <li>상단 ☾ 버튼으로 라이트/다크 모드를 바꿀 수 있어요.</li>
+      <li>완성되면 상단 "다운로드"로 카드를 고화질 이미지(PNG)로 저장하세요.</li>
+      <li>왼쪽 폼 맨 위 "파일로 내보내기"를 누르면 작업 중인 내용이 .json 파일로 저장돼요. 나중에 "파일 불러오기"로 그 파일을 선택하면 그대로 이어서 작업할 수 있어요. (브라우저 자체 저장은 용량 제한이 있어서 파일로 백업해두는 걸 추천해요!)</li>
+    </ol>
+    <p class="help-credit">제작 @S30N6UN / @30M1__</p>
+  </div>
+</div>
+
 <div class="app-window">
   <div class="app-titlebar">
     <span class="dot dot-red"></span>
@@ -583,7 +690,20 @@
     <span class="dot dot-green"></span>
     <span class="app-titlebar-title">성운 메인트 카드 메이커</span>
     <div class="titlebar-actions">
-      <button class="action-btn" id="saveBtn">임시저장</button>
+      <div class="help-wrap">
+        <button class="action-btn" id="helpBtn" aria-label="도움말">💡 HELP</button>
+        <div class="help-tooltip" id="helpTooltip">
+          <ol class="help-list">
+            <li>왼쪽 폼에 내용을 입력하면 오른쪽 미리보기에 실시간으로 반영돼요.</li>
+            <li>헤더·인장·페어카드 사진은 직접 드래그해서 위치를 옮기고, 우하단 점을 잡고 늘리면 확대·축소할 수 있어요.</li>
+            <li>페어카드는 개수 제한 없이 추가·삭제할 수 있고, 카드 하단 바를 드래그하면 칸 높이도 조절돼요.</li>
+            <li>PNG 스티커를 올려서 카드 위 어디든 자유롭게 붙이고 크기를 조절할 수 있어요.</li>
+            <li>상단 ☾ 버튼으로 라이트/다크 모드를 바꿀 수 있어요.</li>
+            <li>완성되면 상단 "다운로드"로 카드를 고화질 이미지(PNG)로 저장하세요.</li>
+            <li>왼쪽 폼 맨 위 "파일로 내보내기"를 누르면 작업 중인 내용이 .json 파일로 저장돼요. 나중에 "파일 불러오기"로 그 파일을 선택하면 그대로 이어서 작업할 수 있어요. (브라우저 자체 저장은 용량 제한이 있어서 파일로 백업해두는 걸 추천해요!)</li>
+          </ol>
+        </div>
+      </div>
       <button class="action-btn" id="downloadBtn">다운로드</button>
       <button class="theme-toggle" id="themeToggle" title="다크모드 전환">☾</button>
       <div class="save-toast" id="saveToast"></div>
@@ -601,7 +721,6 @@
             <input type="file" accept=".json,application/json" id="importInput" hidden>
           </label>
         </div>
-        <span class="hint">브라우저 임시저장은 용량 한도가 있어서 이미지가 많으면 실패할 수 있어요. "파일로 내보내기"를 누르면 지금까지 작업한 내용이 .json 파일로 저장돼요. 나중에 그 파일을 "파일 불러오기"로 선택하면 그대로 이어서 작업할 수 있어요. 파일은 잃어버리지 않게 잘 보관해주세요!</span>
       </div>
 
       <details class="section" open>
@@ -1455,15 +1574,6 @@
     setTimeout(() => saveToast.classList.remove("show"), 1600);
   }
 
-  document.getElementById("saveBtn").addEventListener("click", () => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      showToast("임시저장 완료");
-    } catch (err) {
-      showToast("저장 실패 (용량 초과) - 파일로 내보내기를 이용해주세요");
-    }
-  });
-
   // ---------- 파일로 내보내기 / 불러오기 ----------
   document.getElementById("exportBtn").addEventListener("click", () => {
     try {
@@ -1631,6 +1741,24 @@
       console.error("임시저장 데이터를 불러오지 못했어요", err);
     }
   }
+
+  // ---------- HELP 모달 / 툴팁 ----------
+  const helpModalOverlay = document.getElementById("helpModalOverlay");
+  document.getElementById("helpModalClose").addEventListener("click", () => {
+    helpModalOverlay.style.display = "none";
+  });
+  helpModalOverlay.addEventListener("click", (e) => {
+    if (e.target === helpModalOverlay) helpModalOverlay.style.display = "none";
+  });
+
+  const helpTooltip = document.getElementById("helpTooltip");
+  document.getElementById("helpBtn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    helpTooltip.classList.toggle("show");
+  });
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest(".help-wrap")) helpTooltip.classList.remove("show");
+  });
 
   // ---------- 초기화 ----------
   applyTheme();
