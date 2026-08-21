@@ -621,8 +621,18 @@
   }
 
   .card-footer {
-    text-align: right; padding: 4px 16px 14px;
-    font-size: 10px; color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 4px 16px 14px;
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+  .maker-credit {
+    color: var(--text-muted);
+    opacity: 0.75;
+    letter-spacing: 0.2px;
   }
 
   .sticker-layer {
@@ -946,7 +956,10 @@
           </div>
         </div>
 
-        <div class="card-footer" id="previewCopyright"></div>
+        <div class="card-footer">
+          <span class="maker-credit">@S30N6UN / @30M1__</span>
+          <span id="previewCopyright"></span>
+        </div>
 
         <div class="sticker-layer" id="stickerLayer"></div>
       </div>
@@ -1119,14 +1132,14 @@
           e.target.closest(".sticker-delete") || e.target.closest(".sticker-resize")) return;
       if (e.cancelable) e.preventDefault();
       el.classList.add("panning");
-      const rect = el.getBoundingClientRect();
+      const width = el.clientWidth, height = el.clientHeight;
       const start = getPoint(e);
       const startPos = { x: posObj.x, y: posObj.y };
       startDragTracking((p) => {
         const dx = p.x - start.x;
         const dy = p.y - start.y;
-        posObj.x = clampPercent(startPos.x - (dx / rect.width) * 100);
-        posObj.y = clampPercent(startPos.y - (dy / rect.height) * 100);
+        posObj.x = clampPercent(startPos.x - (dx / width) * 100);
+        posObj.y = clampPercent(startPos.y - (dy / height) * 100);
         onUpdate();
       }, () => {
         el.classList.remove("panning");
@@ -1161,16 +1174,21 @@
   // 때문 - 스티커처럼 <img> 기반이어야 고화질로 캡처된다.
   function layoutCoverImage(containerEl, imgEl, naturalSize, pos) {
     if (!naturalSize || !naturalSize.w) return;
-    const rect = containerEl.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const baseScale = Math.max(rect.width / naturalSize.w, rect.height / naturalSize.h);
+    // getBoundingClientRect()는 테두리(border)까지 포함한 크기를 주는데,
+    // absolute 자식(img)은 테두리 안쪽(padding box) 기준으로 배치되기 때문에
+    // 테두리가 있는 요소(인장 등)에서는 clientWidth/clientHeight를 써야
+    // 계산 기준과 실제 배치 기준이 어긋나 가장자리가 잘리는 문제가 없다.
+    const width = containerEl.clientWidth;
+    const height = containerEl.clientHeight;
+    if (!width || !height) return;
+    const baseScale = Math.max(width / naturalSize.w, height / naturalSize.h);
     const scale = baseScale * (pos.scale || 1);
     const dispW = naturalSize.w * scale;
     const dispH = naturalSize.h * scale;
     imgEl.style.width = dispW + "px";
     imgEl.style.height = dispH + "px";
-    imgEl.style.left = -(dispW - rect.width) * (pos.x / 100) + "px";
-    imgEl.style.top = -(dispH - rect.height) * (pos.y / 100) + "px";
+    imgEl.style.left = -(dispW - width) * (pos.x / 100) + "px";
+    imgEl.style.top = -(dispH - height) * (pos.y / 100) + "px";
   }
 
   function applyInsigniaStyle() {
