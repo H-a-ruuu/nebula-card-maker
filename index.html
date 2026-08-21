@@ -677,7 +677,7 @@
       <li>PNG 스티커를 올려서 카드 위 어디든 자유롭게 붙이고 크기를 조절할 수 있어요.</li>
       <li>상단 ☾ 버튼으로 라이트/다크 모드를 바꿀 수 있어요.</li>
       <li>완성되면 상단 "다운로드"로 카드를 고화질 이미지(PNG)로 저장하세요.</li>
-      <li>왼쪽 폼 맨 위 "파일로 내보내기"를 누르면 작업 중인 내용이 .json 파일로 저장돼요. 나중에 "파일 불러오기"로 그 파일을 선택하면 그대로 이어서 작업할 수 있어요.</li>
+      <li>왼쪽 폼 맨 위 "파일로 내보내기"를 누르면 작업 중인 내용이 .json 파일로 저장돼요. 나중에 "파일 불러오기"로 그 파일을 선택하면 그대로 이어서 작업할 수 있어요. (브라우저 자체 저장은 용량 제한이 있어서 파일로 백업해두는 걸 추천해요!)</li>
     </ol>
     <p class="help-credit">제작 @S30N6UN / @30M1__</p>
   </div>
@@ -700,7 +700,7 @@
             <li>PNG 스티커를 올려서 카드 위 어디든 자유롭게 붙이고 크기를 조절할 수 있어요.</li>
             <li>상단 ☾ 버튼으로 라이트/다크 모드를 바꿀 수 있어요.</li>
             <li>완성되면 상단 "다운로드"로 카드를 고화질 이미지(PNG)로 저장하세요.</li>
-            <li>왼쪽 폼 맨 위 "파일로 내보내기"를 누르면 작업 중인 내용이 .json 파일로 저장돼요. 나중에 "파일 불러오기"로 그 파일을 선택하면 그대로 이어서 작업할 수 있어요.</li>
+            <li>왼쪽 폼 맨 위 "파일로 내보내기"를 누르면 작업 중인 내용이 .json 파일로 저장돼요. 나중에 "파일 불러오기"로 그 파일을 선택하면 그대로 이어서 작업할 수 있어요. (브라우저 자체 저장은 용량 제한이 있어서 파일로 백업해두는 걸 추천해요!)</li>
           </ol>
         </div>
       </div>
@@ -1630,8 +1630,22 @@
     }));
   }
 
+  function supportsDownloadAttribute() {
+    const a = document.createElement("a");
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    // iOS 계열은 download 속성이 있어도 실제로 저장 다이얼로그 대신
+    // 그냥 열리기만 하는 경우가 많아 별도 취급한다.
+    return "download" in a && !isIOS;
+  }
+
   document.getElementById("downloadBtn").addEventListener("click", async () => {
     const btn = document.getElementById("downloadBtn");
+
+    if (typeof html2canvas === "undefined") {
+      showToast("다운로드 기능을 불러오지 못했어요 (네트워크/광고차단 확인)");
+      return;
+    }
+
     const cardWindow = document.querySelector(".card-window");
     const pairScroll = document.getElementById("previewPairs");
     const originalMaxHeight = pairScroll.style.maxHeight;
@@ -1655,10 +1669,20 @@
         allowTaint: true,
         imageTimeout: 20000
       });
-      const link = document.createElement("a");
-      link.download = (state.nickname || "dreamcard") + ".png";
-      link.href = canvas.toDataURL("image/png");
-      link.click();
+      const dataUrl = canvas.toDataURL("image/png");
+
+      if (supportsDownloadAttribute()) {
+        const link = document.createElement("a");
+        link.download = (state.nickname || "dreamcard") + ".png";
+        link.href = dataUrl;
+        link.click();
+      } else {
+        // 아이폰 사파리 / 트위터·카카오톡 인앱 브라우저 등 download 속성이
+        // 제대로 동작하지 않는 환경 대비: 새 탭에 이미지를 열어서
+        // 길게 눌러 저장할 수 있게 한다.
+        window.open(dataUrl, "_blank");
+        showToast("새 탭에 이미지가 열렸어요. 길게 눌러서 저장해주세요");
+      }
     } catch (err) {
       showToast("다운로드 중 문제가 생겼어요");
     } finally {
