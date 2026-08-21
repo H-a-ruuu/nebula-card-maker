@@ -507,9 +507,8 @@
   .card-header-img {
     height: 96px;
     background: var(--surface-chip);
-    background-size: cover;
-    background-position: center;
     position: relative;
+    overflow: hidden;
     cursor: grab;
     touch-action: none;
     user-select: none;
@@ -518,13 +517,21 @@
   .card-insignia {
     width: 72px; height: 72px; border-radius: 50%;
     background: var(--surface-chip);
-    background-size: cover; background-position: center;
     border: 3px solid var(--surface);
     position: absolute;
     left: 16px; top: 62px;
+    overflow: hidden;
     cursor: grab;
     touch-action: none;
     user-select: none;
+  }
+  .frame-img {
+    position: absolute;
+    top: 0; left: 0;
+    max-width: none;
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
   }
   .pan-zoom-handle {
     position: absolute;
@@ -588,8 +595,7 @@
     background: var(--surface-chip);
     border-radius: 10px;
     min-height: 160px;
-    background-size: cover;
-    background-position: center;
+    overflow: hidden;
     position: relative;
     display: flex;
     align-items: flex-end;
@@ -892,7 +898,9 @@
         <div class="card-grid">
           <div class="card-left">
             <div class="card-header-img" id="previewHeader">
+              <img class="frame-img" id="headerImg" alt="">
               <div class="card-insignia" id="previewInsignia">
+                <img class="frame-img" id="insigniaImg" alt="">
                 <div class="pan-zoom-handle" id="insigniaZoomHandle" title="확대/축소"></div>
               </div>
               <div class="pan-zoom-handle" id="headerZoomHandle" title="확대/축소"></div>
@@ -964,6 +972,8 @@
     header: null,
     insigniaPos: { x: 50, y: 50, scale: 1 },
     headerPos: { x: 50, y: 50, scale: 1 },
+    insigniaNatural: null,
+    headerNatural: null,
     accountSelected: [],
     accountCustom: [],
     genreSelected: [],
@@ -1138,17 +1148,42 @@
     });
   }
 
+  function loadImageNatural(url, cb) {
+    const img = new Image();
+    img.onload = () => cb({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => cb(null);
+    img.src = url;
+  }
+
+  // 실제 <img> 태그를 컨테이너에 꽉 차게(cover) 배치하고, pos.scale/x/y로
+  // 확대·이동시킨다. CSS background-image 대신 진짜 <img>를 쓰는 이유는
+  // 다운로드 캡처(html2canvas)가 background-image는 화질을 제대로 못 살리기
+  // 때문 - 스티커처럼 <img> 기반이어야 고화질로 캡처된다.
+  function layoutCoverImage(containerEl, imgEl, naturalSize, pos) {
+    if (!naturalSize || !naturalSize.w) return;
+    const rect = containerEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const baseScale = Math.max(rect.width / naturalSize.w, rect.height / naturalSize.h);
+    const scale = baseScale * (pos.scale || 1);
+    const dispW = naturalSize.w * scale;
+    const dispH = naturalSize.h * scale;
+    imgEl.style.width = dispW + "px";
+    imgEl.style.height = dispH + "px";
+    imgEl.style.left = -(dispW - rect.width) * (pos.x / 100) + "px";
+    imgEl.style.top = -(dispH - rect.height) * (pos.y / 100) + "px";
+  }
+
   function applyInsigniaStyle() {
-    const elImg = document.getElementById("previewInsignia");
-    if (state.insignia) elImg.style.backgroundImage = `url(${state.insignia})`;
-    elImg.style.backgroundPosition = `${state.insigniaPos.x}% ${state.insigniaPos.y}%`;
-    elImg.style.backgroundSize = `${state.insigniaPos.scale * 100}%`;
+    const container = document.getElementById("previewInsignia");
+    const imgEl = document.getElementById("insigniaImg");
+    if (state.insignia && imgEl.src !== state.insignia) imgEl.src = state.insignia;
+    layoutCoverImage(container, imgEl, state.insigniaNatural, state.insigniaPos);
   }
   function applyHeaderStyle() {
-    const elImg = document.getElementById("previewHeader");
-    if (state.header) elImg.style.backgroundImage = `url(${state.header})`;
-    elImg.style.backgroundPosition = `${state.headerPos.x}% ${state.headerPos.y}%`;
-    elImg.style.backgroundSize = `${state.headerPos.scale * 100}%`;
+    const container = document.getElementById("previewHeader");
+    const imgEl = document.getElementById("headerImg");
+    if (state.header && imgEl.src !== state.header) imgEl.src = state.header;
+    layoutCoverImage(container, imgEl, state.headerNatural, state.headerPos);
   }
 
   attachPan(document.getElementById("previewHeader"), {
@@ -1173,7 +1208,10 @@
       state.insignia = url;
       state.insigniaPos = { x: 50, y: 50, scale: 1 };
       document.getElementById("insigniaThumb").style.backgroundImage = `url(${url})`;
-      applyInsigniaStyle();
+      loadImageNatural(url, (size) => {
+        state.insigniaNatural = size;
+        applyInsigniaStyle();
+      });
     });
   });
   document.getElementById("headerInput").addEventListener("change", (e) => {
@@ -1183,7 +1221,10 @@
       state.header = url;
       state.headerPos = { x: 50, y: 50, scale: 1 };
       document.getElementById("headerThumb").style.backgroundImage = `url(${url})`;
-      applyHeaderStyle();
+      loadImageNatural(url, (size) => {
+        state.headerNatural = size;
+        applyHeaderStyle();
+      });
     });
   });
 
@@ -1359,8 +1400,12 @@
       if (!file) return;
       readFileAsDataUrl(file, (url) => {
         pair.image = url;
+        pair.posX = 50; pair.posY = 50; pair.scale = 1;
         item.querySelector(".pair-thumb").style.backgroundImage = `url(${url})`;
-        renderPairPreview();
+        loadImageNatural(url, (size) => {
+          pair.natural = size;
+          renderPairPreview();
+        });
       });
     });
     item.querySelector(".pair-genre").addEventListener("input", (e) => { pair.genre = e.target.value; renderPairPreview(); });
@@ -1420,6 +1465,7 @@
 
       const card = el(`
         <div class="pair-card-preview" style="min-height:${pair.cardHeight}px; height:${pair.cardHeight}px;">
+          <img class="frame-img pair-img" alt="">
           <div class="pair-card-overlay" style="background:linear-gradient(transparent 40%, rgba(0,0,0,${pair.overlay ?? 0.65}))"></div>
           <div class="pair-card-text">
             <p class="pn">${pair.pairName || "페어명"}${pair.name ? " · " + pair.name : ""}</p>
@@ -1430,11 +1476,13 @@
         </div>
       `);
 
+      const pairImgEl = card.querySelector(".pair-img");
+      previewPairs.appendChild(card);
+
       function applyPairCardStyle() {
         if (pair.image) {
-          card.style.backgroundImage = `url(${pair.image})`;
-          card.style.backgroundPosition = `${pair.posX}% ${pair.posY}%`;
-          card.style.backgroundSize = `${pair.scale * 100}%`;
+          if (pairImgEl.src !== pair.image) pairImgEl.src = pair.image;
+          layoutCoverImage(card, pairImgEl, pair.natural, { x: pair.posX, y: pair.posY, scale: pair.scale });
         }
       }
       applyPairCardStyle();
@@ -1454,8 +1502,6 @@
           card.style.height = pair.cardHeight + "px";
         }, () => {});
       });
-
-      previewPairs.appendChild(card);
     });
   }
 
@@ -1721,6 +1767,14 @@
     }
     if (!state.insigniaPos) state.insigniaPos = { x: 50, y: 50, scale: 1 };
     if (!state.headerPos) state.headerPos = { x: 50, y: 50, scale: 1 };
+
+    // 예전에 저장된 파일(원본 크기 정보가 없는 경우)은 다시 계산해서 채워준다.
+    if (state.insignia && !state.insigniaNatural) {
+      loadImageNatural(state.insignia, (size) => { state.insigniaNatural = size; applyInsigniaStyle(); });
+    }
+    if (state.header && !state.headerNatural) {
+      loadImageNatural(state.header, (size) => { state.headerNatural = size; applyHeaderStyle(); });
+    }
     applyInsigniaStyle();
     applyHeaderStyle();
 
@@ -1738,6 +1792,9 @@
     savedPairs.forEach(pair => {
       state.pairs.push(pair);
       renderPairForm(pair);
+      if (pair.image && !pair.natural) {
+        loadImageNatural(pair.image, (size) => { pair.natural = size; renderPairPreview(); });
+      }
     });
     renderPairPreview();
     pairIdSeq = savedPairs.reduce((max, p) => Math.max(max, p.id), 0) + 1;
