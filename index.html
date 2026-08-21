@@ -524,10 +524,15 @@
     border: 3px solid var(--surface);
     position: absolute;
     left: 16px; top: 62px;
-    overflow: hidden;
     cursor: grab;
     touch-action: none;
     user-select: none;
+  }
+  .insignia-img-clip {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    overflow: hidden;
   }
   .frame-img {
     position: absolute;
@@ -916,7 +921,9 @@
                 <img class="frame-img" id="headerImg" alt="">
               </div>
               <div class="card-insignia" id="previewInsignia">
-                <img class="frame-img" id="insigniaImg" alt="">
+                <div class="insignia-img-clip">
+                  <img class="frame-img" id="insigniaImg" alt="">
+                </div>
                 <div class="pan-zoom-handle" id="insigniaZoomHandle" title="확대/축소"></div>
               </div>
               <div class="pan-zoom-handle" id="headerZoomHandle" title="확대/축소"></div>
@@ -963,7 +970,7 @@
         </div>
 
         <div class="card-footer">
-          <span class="maker-credit">@S30N6UN / @30M1__</span>
+          <span class="maker-credit">@S30N6UN</span>
           <span id="previewCopyright"></span>
         </div>
 
