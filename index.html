@@ -508,10 +508,14 @@
     height: 96px;
     background: var(--surface-chip);
     position: relative;
-    overflow: hidden;
     cursor: grab;
     touch-action: none;
     user-select: none;
+  }
+  .header-img-clip {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
   }
   .card-header-img.panning, .card-insignia.panning, .pair-card-preview.panning { cursor: grabbing; }
   .card-insignia {
@@ -908,7 +912,9 @@
         <div class="card-grid">
           <div class="card-left">
             <div class="card-header-img" id="previewHeader">
-              <img class="frame-img" id="headerImg" alt="">
+              <div class="header-img-clip">
+                <img class="frame-img" id="headerImg" alt="">
+              </div>
               <div class="card-insignia" id="previewInsignia">
                 <img class="frame-img" id="insigniaImg" alt="">
                 <div class="pan-zoom-handle" id="insigniaZoomHandle" title="확대/축소"></div>
