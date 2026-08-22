@@ -1763,9 +1763,26 @@
 
       if (preOpenedTab) {
         // 아이폰 사파리 / 트위터·카카오톡 인앱 브라우저 등 download 속성이
-        // 제대로 동작하지 않는 환경 대비: 미리 열어둔 탭에 이미지를 채워서
-        // 길게 눌러 저장할 수 있게 한다.
-        preOpenedTab.location.href = dataUrl;
+        // 제대로 동작하지 않는 환경 대비: 미리 열어둔 탭에 이미지가 담긴
+        // 페이지를 직접 그려 넣는다. (location.href로 큰 data URL을 바로
+        // 넘기면 사파리에서 about:blank로 멈추는 경우가 있어, 페이지 안에
+        // <img>로 넣는 방식이 훨씬 안정적으로 동작한다.)
+        const filename = (state.nickname || "dreamcard") + ".png";
+        preOpenedTab.document.open();
+        preOpenedTab.document.write(
+          '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+          '<meta name="viewport" content="width=device-width, initial-scale=1.0">' +
+          '<title>' + filename + '</title>' +
+          '<style>body{margin:0;background:#111;display:flex;flex-direction:column;align-items:center;' +
+          'justify-content:center;min-height:100vh;font-family:sans-serif;}' +
+          'img{max-width:100%;height:auto;display:block;}' +
+          'p{color:#ddd;font-size:13px;padding:14px;text-align:center;margin:0;}</style>' +
+          '</head><body>' +
+          '<p>사진을 길게 눌러 "사진에 저장"을 선택해주세요</p>' +
+          '<img src="' + dataUrl + '" alt="' + filename + '">' +
+          '</body></html>'
+        );
+        preOpenedTab.document.close();
         showToast("새 탭에 이미지가 열렸어요. 길게 눌러서 저장해주세요");
       } else {
         const link = document.createElement("a");
