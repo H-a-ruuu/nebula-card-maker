@@ -970,7 +970,7 @@
         </div>
 
         <div class="card-footer">
-          <span class="maker-credit">@S30N6UN</span>
+          <span class="maker-credit">@S30N6UN / @30M1__</span>
           <span id="previewCopyright"></span>
         </div>
 
@@ -1723,6 +1723,19 @@
       return;
     }
 
+    // 팝업 차단 방지: 비동기 작업(캡처) 전에, 사용자가 클릭한 바로 그 순간
+    // 빈 탭을 미리 열어둔다. 나중에 이미지가 준비되면 이 탭에 채워넣는다.
+    // (캡처가 끝난 뒤에 새로 열면 "사용자 동작이 아니다"로 판단해 차단된다.)
+    const needsNewTab = !supportsDownloadAttribute();
+    let preOpenedTab = null;
+    if (needsNewTab) {
+      preOpenedTab = window.open("", "_blank");
+      if (!preOpenedTab) {
+        showToast("팝업이 차단됐어요. 브라우저 팝업 차단을 해제해주세요");
+        return;
+      }
+    }
+
     const cardWindow = document.querySelector(".card-window");
     const pairScroll = document.getElementById("previewPairs");
     const originalMaxHeight = pairScroll.style.maxHeight;
@@ -1748,19 +1761,20 @@
       });
       const dataUrl = canvas.toDataURL("image/png");
 
-      if (supportsDownloadAttribute()) {
+      if (preOpenedTab) {
+        // 아이폰 사파리 / 트위터·카카오톡 인앱 브라우저 등 download 속성이
+        // 제대로 동작하지 않는 환경 대비: 미리 열어둔 탭에 이미지를 채워서
+        // 길게 눌러 저장할 수 있게 한다.
+        preOpenedTab.location.href = dataUrl;
+        showToast("새 탭에 이미지가 열렸어요. 길게 눌러서 저장해주세요");
+      } else {
         const link = document.createElement("a");
         link.download = (state.nickname || "dreamcard") + ".png";
         link.href = dataUrl;
         link.click();
-      } else {
-        // 아이폰 사파리 / 트위터·카카오톡 인앱 브라우저 등 download 속성이
-        // 제대로 동작하지 않는 환경 대비: 새 탭에 이미지를 열어서
-        // 길게 눌러 저장할 수 있게 한다.
-        window.open(dataUrl, "_blank");
-        showToast("새 탭에 이미지가 열렸어요. 길게 눌러서 저장해주세요");
       }
     } catch (err) {
+      if (preOpenedTab) preOpenedTab.close();
       showToast("다운로드 중 문제가 생겼어요");
     } finally {
       pairScroll.style.maxHeight = originalMaxHeight;
